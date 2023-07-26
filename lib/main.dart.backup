@@ -1,0 +1,355 @@
+import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:geolocator/geolocator.dart'; // Import the geolocator package
+
+
+// my google cloud api key is
+// AIzaSyD5MwiWv6cqsuRBeALlMymMhWLTv0cSehk
+void main() {
+  runApp(MyApp());
+}
+
+class Note {
+  final double latitude;
+  final double longitude;
+  String noteText;
+
+  Note(this.latitude, this.longitude, this.noteText);
+}
+
+class MapScreen extends StatefulWidget {
+  @override
+  _MapScreenState createState() => _MapScreenState();
+}
+
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Location Notes',
+      home: MapScreen(), // Use the updated MapScreen with the correct initialCameraPosition
+    );
+  }
+}
+
+
+
+class _MapScreenState extends State<MapScreen> {
+  GoogleMapController? mapController;
+  Set<Marker> _markers = {};
+  LatLng? lastAddedNoteLocation; // Add this variable to track the last added note's location
+
+
+  Future<LatLng> _getInitialCameraPosition() async {
+    try {
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.best,
+      );
+      return LatLng(position.latitude, position.longitude);
+    } catch (e) {
+      print('Error getting initial camera position: $e');
+      return LatLng(0, 0);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Location Notes'),
+      ),
+      body: FutureBuilder<LatLng>(
+        future: _getInitialCameraPosition(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            // While waiting for the location data, you can show a loading indicator or any other placeholder.
+            return Center(child: CircularProgressIndicator());
+          } else if (snapshot.hasError) {
+            // Handle the error state if fetching the location data fails.
+            return Center(child: Text('Error fetching location'));
+          } else {
+            // Once the location data is available, build the GoogleMap widget.
+            LatLng initialCameraPosition = snapshot.data ?? LatLng(0, 0);
+            if (lastAddedNoteLocation != null) {
+              initialCameraPosition = lastAddedNoteLocation!;
+            }
+            return GoogleMap(
+              onMapCreated: (GoogleMapController controller) {
+                mapController = controller;
+              },
+              onTap: _addNoteMarker,
+              markers: _markers,
+              initialCameraPosition: CameraPosition(
+                target: initialCameraPosition,
+                zoom: 17.5,
+              ),
+            );
+          }
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget old_build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Location Notes'),
+      ),
+      body: FutureBuilder<LatLng>(
+        future: _getInitialCameraPosition(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            // While waiting for the location data, you can show a loading indicator or any other placeholder.
+            return Center(child: CircularProgressIndicator());
+          } else if (snapshot.hasError) {
+            // Handle the error state if fetching the location data fails.
+            return Center(child: Text('Error fetching location'));
+          } else {
+            // Once the location data is available, build the GoogleMap widget.
+            LatLng initialCameraPosition = snapshot.data ?? LatLng(0, 0);
+            return GoogleMap(
+              onMapCreated: (GoogleMapController controller) {
+                mapController = controller;
+              },
+              onTap: _addNoteMarker,
+              markers: _markers,
+              initialCameraPosition: CameraPosition(
+                target: initialCameraPosition,
+                zoom: 17.5,
+              ),
+            );
+          }
+        },
+      ),
+    );
+  }
+
+  void old_addNoteMarker(LatLng latLng) async {
+    String noteText = await showDialog(
+      context: context,
+      builder: (context) => NoteInputDialog(),
+    );
+
+    if (noteText != null) {
+      setState(() {
+        _markers.add(
+          Marker(
+            markerId: MarkerId(latLng.toString()),
+            position: latLng,
+            onTap: () => _showNoteDetails(latLng, noteText),
+          ),
+        );
+      });
+
+      // Make the API call to create a Note object
+      await _createNoteOnServer(latLng.latitude, latLng.longitude, noteText);
+      // Update the last added note's location
+      lastAddedNoteLocation = latLng;
+    }
+  }
+
+  void _addNoteMarker(LatLng latLng) {
+    String noteText = await showDialog( context: context, builder: (context) => NoteInputDialog(), );
+    setState(() {
+      _markers.add(
+        Marker(
+          markerId: MarkerId(latLng.toString()),
+          position: latLng,
+          onTap: () => _showNoteDetails(latLng, noteText),
+        ),
+      );
+    });
+
+    // Make the API call to create a Note object in the background
+    _createNoteOnServerInBackground(latLng.latitude, latLng.longitude, noteText);
+  }
+
+  Future<void> _createNoteOnServerInBackground(double latitude, double longitude, String noteText) async {
+    try {
+      await _createNoteOnServer(latitude, longitude, noteText);
+      // Handle the response if needed (e.g., print success message or update UI)
+      print('Note created successfully');
+    } catch (error) {
+      // Handle errors if the API call fails (e.g., show an error message or handle retry logic)
+      print('Failed to create note: $error');
+    }
+  }
+
+  void iii_createNoteOnServerInBackground(double latitude, double longitude, String noteText) {
+    _createNoteOnServer(latitude, longitude, noteText).then((response) {
+      // Handle the response if needed (e.g., print success message or update UI)
+      print('Note created successfully');
+    }).catchError((error) {
+      // Handle errors if the API call fails (e.g., show an error message or handle retry logic)
+      print('Failed to create note: $error');
+    });
+  }
+
+  void xxx_addNoteMarker(LatLng latLng) async {
+    String noteText = await showDialog( context: context, builder: (context) => NoteInputDialog(), );
+    // Update the last added note's location and re-center the map
+    setState(() {
+      lastAddedNoteLocation = latLng;
+      _markers.add(
+        Marker(
+          markerId: MarkerId(latLng.toString()),
+          position: latLng,
+          onTap: () => _showNoteDetails(latLng, noteText),
+        ),
+      );
+    });
+
+    //String noteText = await showDialog( context: context, builder: (context) => NoteInputDialog(), );
+
+    if (noteText != null) {
+      // Make the API call to create a Note object
+      await _createNoteOnServer(latLng.latitude, latLng.longitude, noteText);
+    }
+  }
+
+  void old_new__addNoteMarker(LatLng latLng) async {
+    String noteText = await showDialog(
+      context: context,
+      builder: (context) => NoteInputDialog(),
+    );
+
+    if (noteText != null) {
+      setState(() {
+        _markers.add(
+          Marker(
+            markerId: MarkerId(latLng.toString()),
+            position: latLng,
+            onTap: () => _showNoteDetails(latLng, noteText),
+          ),
+        );
+      });
+
+      // Make the API call to create a Note object
+      await _createNoteOnServer(latLng.latitude, latLng.longitude, noteText);
+
+      // Update the last added note's location and re-center the map
+      setState(() {
+        lastAddedNoteLocation = latLng;
+      });
+    }
+  }
+
+
+
+
+  void _showNoteDetails(LatLng latLng, String noteText) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Note Details'),
+        content: Text(
+          'Latitude: ${latLng.latitude}\nLongitude: ${latLng.longitude}\n\nNote: $noteText',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+  Future<void> _createNoteOnServer(double latitude, double longitude, String noteText) async {
+    try {
+      final response = await http.post(
+        Uri.parse('http://192.168.1.170:8000/notes/'), // Replace with your API endpoint
+        headers: <String, String>{
+          'Content-Type': 'application/json; charset=UTF-8',
+        },
+        body: jsonEncode(<String, dynamic>{
+          "taker": "phone-app",
+          "message": noteText,
+          "latitude": latitude,
+          "longitude": longitude
+        }),
+      );
+
+      if (response.statusCode == 201) {
+        // If the API call is successful, return here without using await
+        return;
+      } else {
+        // If the API call fails, throw an exception to be caught by the catchError block
+        throw Exception('Failed to create note. Status code: ${response.statusCode}');
+      }
+    } catch (e) {
+      // If any error occurs during the API call, throw an exception to be caught by the catchError block
+      throw Exception('Error creating note: $e');
+    }
+  }
+
+  Future<void> old_createNoteOnServer(double latitude, double longitude, String noteText) async {
+    // times out var restApiUrl = 'http://97.68.128.63/notes';
+    var restApiUrl = 'http://192.168.1.170:8000/notes/';
+    try {
+      final response = await http.post(
+        Uri.parse(restApiUrl), // Replace with your API endpoint
+        headers: <String, String>{
+          'Content-Type': 'application/json; charset=UTF-8',
+        },
+        body: jsonEncode(<String, dynamic>{
+          "taker": "phone-app",
+          "message": noteText,
+          "latitude": latitude,
+          "longitude": longitude
+        }),
+      );
+
+      if (response.statusCode == 201) {
+        print('Note created successfully');
+      } else {
+        // print('Failed to create note. Status code: ${response.statusCode}');
+        print('Failed to create note. Status code: ${response.body}');
+      }
+    } catch (e) {
+      print('Error creating note: $e');
+      print('url is [$restApiUrl]');
+    }
+  }
+}
+
+class NoteInputDialog extends StatefulWidget {
+  @override
+  _NoteInputDialogState createState() => _NoteInputDialogState();
+}
+
+class _NoteInputDialogState extends State<NoteInputDialog> {
+  TextEditingController _textEditingController = TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('Add Note'),
+      content: TextField(
+        controller: _textEditingController,
+        decoration: InputDecoration(labelText: 'Enter your note'),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () {
+            String noteText = _textEditingController.text;
+            Navigator.of(context).pop(noteText);
+          },
+          child: Text('Add'),
+        ),
+      ],
+    );
+  }
+
+  @override
+  void dispose() {
+    _textEditingController.dispose();
+    super.dispose();
+  }
+}
